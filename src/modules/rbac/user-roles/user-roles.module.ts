@@ -7,18 +7,20 @@ import { UserRole, UserRoleSchema } from '@infrastructure/database/schemas/user-
 import { Role, RoleSchema } from '@infrastructure/database/schemas/role.schema';
 import { RolesModule } from '../roles/roles.module';
 
+// Import the new module so RbacCacheService is accessible in this context
+import { RbacCacheModule } from '@infrastructure/cache/rbac-cache.module';
+
 
 
 @Module({
   imports: [
-   
     MongooseModule.forFeature([
       { name: UserRole.name, schema: UserRoleSchema },
       { name: Role.name, schema: RoleSchema },
     ]),
 
-   
     RolesModule,
+    RbacCacheModule, // <-- this is the fix
   ],
 
   controllers: [UserRolesController],
@@ -26,7 +28,6 @@ import { RolesModule } from '../roles/roles.module';
   providers: [UserRolesService],
 
   exports: [
-  
     UserRolesService,
   ],
 })

@@ -1,18 +1,24 @@
+// src/modules/auth/guards/permissions.guard.ts
 import { 
   Injectable, 
   CanActivate, 
   ExecutionContext,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-
 import { AuditService } from 'src/modules/rbac/audit/audit.service';
 import { ContextEvaluatorService } from 'src/modules/rbac/context/context-evaluator.service';
 import { PermissionContext } from 'src/modules/rbac/context/permission-context.interface';
 import { UserRolesService } from 'src/modules/rbac/user-roles/user-roles.service';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
+ 
+  private readonly logger = new Logger(PermissionsGuard.name);
+
   constructor(
     private reflector: Reflector,
     private userRolesService: UserRolesService,
@@ -21,37 +27,58 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Get required permissions from decorator
+    
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      this.logger.log('Route is public — skipping permission check');
+      return true;
+    }
+
+   
     const requiredPermissions = this.reflector.get<string[]>(
       'permissions',
       context.getHandler(),
     );
 
-    // If no permissions required, allow access
     if (!requiredPermissions || requiredPermissions.length === 0) {
+      this.logger.log('No permissions required for this route — allowing');
       return true;
     }
 
-    // Get request and user
+    this.logger.log(`Required permissions: ${requiredPermissions.join(', ')}`);
+
+    
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
     if (!user) {
+      this.logger.warn('No user on request — JWT guard may have failed');
       return false;
     }
 
-    // Build permission context
+    this.logger.log(`Checking permissions for user: ${user.email} (${user.userId})`);
+
+    // Build the full context object for attribute-based checks
     const permissionContext = this.buildContext(request, user);
 
-    // Check each required permission
+    
     for (const permission of requiredPermissions) {
+      this.logger.log(`Checking basic permission: ${permission}`);
+
       const hasBasicPermission = await this.userRolesService.hasPermission(
         user.userId,
         permission,
       );
 
       if (!hasBasicPermission) {
-        // User doesn't have the permission at all
+        this.logger.warn(
+          `DENIED — User ${user.email} does not have permission: ${permission}`,
+        );
+
         await this.auditService.logPermissionCheck({
           userId: user.userId,
           permission,
@@ -59,19 +86,24 @@ export class PermissionsGuard implements CanActivate {
           reason: 'Permission not assigned to user',
           context: permissionContext,
         });
-        
+
         throw new ForbiddenException(
           `Missing required permission: ${permission}`,
         );
       }
 
-      // User has permission, now check context/attributes
+      this.logger.log(`Basic permission ${permission} — FOUND, checking context rules...`);
+
+     
       const decision = this.contextEvaluator.evaluatePermission(
         permission,
         permissionContext,
       );
 
-      // Log the permission check
+      this.logger.log(
+        `Context evaluation for ${permission}: ${decision.granted ? 'GRANTED' : 'DENIED'} — ${decision.reason}`,
+      );
+
       await this.auditService.logPermissionCheck({
         userId: user.userId,
         permission,
@@ -82,61 +114,48 @@ export class PermissionsGuard implements CanActivate {
       });
 
       if (!decision.granted) {
-        throw new ForbiddenException(
-          `Permission denied: ${decision.reason}`,
+        this.logger.warn(
+          `DENIED by context rule — ${decision.reason}`,
         );
+        throw new ForbiddenException(`Permission denied: ${decision.reason}`);
       }
+
+      this.logger.log(`Permission ${permission} — GRANTED for ${user.email}`);
     }
 
     return true;
   }
 
-  /**
-   * Build permission context from request
-   */
   private buildContext(request: any, user: any): PermissionContext {
-    // Extract resource info from request (if available)
-    const resourceId = request.params.id || request.body.resourceId;
-    const resourceType = this.extractResourceType(request.route?.path);
+      const resourceId = request.params?.id || request.body?.resourceId;
+  const resourceType = this.extractResourceType(request.route?.path);
+
+    this.logger.debug(`Building context — resource: ${resourceType}, id: ${resourceId}`);
 
     return {
-      // User attributes
       userId: user.userId,
       userEmail: user.email,
       userDepartment: user.department,
       userRole: user.role,
-
-      // Resource attributes
       resourceId,
       resourceType,
       resourceDepartment: request.body?.department,
       resourceOwnerId: request.body?.ownerId,
-
-      // Environmental attributes
       ipAddress: this.getClientIP(request),
       userAgent: request.headers['user-agent'] || 'unknown',
       timestamp: new Date(),
-
-      // Security attributes
       hasMFA: user.mfaVerified || false,
       sessionAge: this.calculateSessionAge(user.loginTime),
       deviceTrusted: this.isDeviceTrusted(request),
     };
   }
 
-  /**
-   * Extract resource type from route path
-   * Example: /api/users/:id -> 'users'
-   */
   private extractResourceType(path: string): string {
     if (!path) return 'unknown';
     const match = path.match(/\/api\/([^\/]+)/);
     return match ? match[1] : 'unknown';
   }
 
-  /**
-   * Get client IP address
-   */
   private getClientIP(request: any): string {
     return (
       request.headers['x-forwarded-for']?.split(',')[0] ||
@@ -147,22 +166,14 @@ export class PermissionsGuard implements CanActivate {
     );
   }
 
-  /**
-   * Calculate session age in minutes
-   */
   private calculateSessionAge(loginTime: Date): number {
-    if (!loginTime) return 9999; // Very old session
+    if (!loginTime) return 9999;
     const now = new Date();
     const diffMs = now.getTime() - new Date(loginTime).getTime();
-    return Math.floor(diffMs / 1000 / 60); // Convert to minutes
+    return Math.floor(diffMs / 1000 / 60);
   }
 
-  /**
-   * Check if device is trusted (simple implementation)
-   */
   private isDeviceTrusted(request: any): boolean {
-    // In production, check against trusted device tokens
-    // For now, just return true if deviceId exists
     return !!request.headers['x-device-id'];
   }
 }

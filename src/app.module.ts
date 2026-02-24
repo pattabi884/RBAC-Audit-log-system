@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CacheModule } from '@nestjs/cache-manager';
+import { APP_GUARD } from '@nestjs/core';
 
 // Infrastructure
 import { QueueModule } from '@infrastructure/queues/queue.module';
@@ -13,31 +14,16 @@ import { RbacModule } from '@modules/rbac/rbac.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { UsersModule } from '@modules/users/users.module';
 
-/*
-  WHY THIS FILE EXISTS:
-  This is the root module — the entry point of your entire NestJS app.
-  Every module you build must be imported here (directly or indirectly)
-  to be active. Think of it as the table of contents for your whole app.
-  NestJS reads this file first when it boots up and builds the
-  entire dependency tree from it.
-*/
+// The guard itself
+import { PermissionsGuard } from '@modules/auth/guards/permissions.guard';
+import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
-    /*
-      ConfigModule.forRoot() loads your .env file and makes
-      ConfigService available everywhere in the app.
-      isGlobal: true means you don't need to import ConfigModule
-      again in every single module — it's available everywhere automatically.
-    */
+   
     ConfigModule.forRoot({ isGlobal: true }),
 
-    /*
-      MongooseModule.forRootAsync() sets up the MongoDB connection.
-      We use forRootAsync because we need ConfigService to read
-      MONGODB_URI from .env — that value isn't available at import time.
-      This single connection is shared across all modules in the app.
-    */
+  
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -75,6 +61,12 @@ import { UsersModule } from '@modules/users/users.module';
       RbacModule brings in everything RBAC related:
       roles, permissions, user-roles, audit, and context evaluation.
       This is the core of your entire system.
+
+      IMPORTANT: RbacModule exports UserRolesModule, AuditModule,
+      and ContextEvaluatorService — all of which PermissionsGuard
+      needs. Because RbacModule is imported here at the root level,
+      those exports are available in AppModule's context, which means
+      the global APP_GUARD below can access them.
     */
     RbacModule,
 
@@ -84,6 +76,38 @@ import { UsersModule } from '@modules/users/users.module';
       NestJS handles that dependency order automatically.
     */
     UsersModule,
+  ],
+
+  providers: [
+    /*
+      APP_GUARD is a special NestJS token that registers a guard
+      GLOBALLY — meaning it runs on every single route in the entire app.
+
+      WHY THIS SOLVES THE PROBLEM:
+      When you use @UseGuards(PermissionsGuard) on a controller inside
+      RolesModule, NestJS tries to instantiate PermissionsGuard inside
+      RolesModule's context — but RolesModule doesn't know about
+      UserRolesService, AuditService, or ContextEvaluatorService.
+
+      By moving PermissionsGuard here with APP_GUARD, it's instantiated
+      at the AppModule level, where ALL of those services ARE available
+      (because RbacModule is imported here and exports them).
+
+      You can now REMOVE @UseGuards(PermissionsGuard) from individual
+      controllers — the guard runs automatically on every route.
+      Keep @UseGuards(JwtAuthGuard) since that's a different guard.
+      Keep @RequirePermissions(...) decorators — those still work.
+      Routes with no @RequirePermissions decorator are passed through
+      automatically (the guard checks for this and returns true).
+    */
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
+    },
   ],
 })
 export class AppModule {}

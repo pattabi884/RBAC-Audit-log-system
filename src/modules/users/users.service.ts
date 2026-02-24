@@ -75,7 +75,7 @@ async deactivate(id: string): Promise<UserDocument> {
       .findByIdAndUpdate(
         id,
         { $set: { isActive: false } },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .select('-passwordHash');
 

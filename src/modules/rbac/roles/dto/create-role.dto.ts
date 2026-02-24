@@ -16,3 +16,5 @@ export class CreateRoleDto {
     @IsOptional()
     isSystemRole?: boolean;
 }
+// Never accept isSystemRole from client
+// It's not in the DTO so class-validator strips it automatically

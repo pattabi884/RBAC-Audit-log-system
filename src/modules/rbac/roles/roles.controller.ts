@@ -11,21 +11,23 @@ import {
 } from '@nestjs/common';
 
 import { RolesService } from './roles.service';
-//import { CreateRoleDto, UpdateRoleDto, AddPermissionDto } from './dto';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '@modules/auth/guards/permissions.guard';
+// PermissionsGuard removed from import — it's now a global APP_GUARD in AppModule
+// and runs automatically on every route. Listing it here caused NestJS to try
+// to instantiate it inside RolesModule, where its dependencies don't exist.
 import { RequirePermissions } from '@modules/auth/decorators/require-permissions.decorator';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AddPermissionDto } from './dto/add-permission.dto';
+import { Public } from '@modules/auth/decorators/public.decorator';
 
 @Controller('roles')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-
+@UseGuards(JwtAuthGuard)  // PermissionsGuard removed — it runs globally via APP_GUARD
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   // POST /roles
+  //@Public()
   @Post()
   @RequirePermissions('roles:create')
   create(@Body() createRoleDto: CreateRoleDto) {

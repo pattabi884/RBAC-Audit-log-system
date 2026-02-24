@@ -29,7 +29,9 @@ export class AuditProcessor extends WorkerHost {
       if (suspicious.detected) {
         await this.auditService.markAsSuspicious(
           auditLog._id.toString(),
-          suspicious.reason,
+          // suspicious.reason is string | undefined, so we fall back to a
+          // default string if it's missing — ?? means "or if undefined/null"
+          suspicious.reason ?? 'No reason provided',
         );
 
         this.logger.warn(`Suspicious activity detected`);

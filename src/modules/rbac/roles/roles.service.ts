@@ -24,7 +24,10 @@ export class RolesService {
       throw new ConflictException(`Role '${createRoleDto.name}' already exists`);
     }
 
-    const role = new this.roleModel(createRoleDto);
+    const role = new this.roleModel({
+    ...createRoleDto,
+    isSystemRole: false, // ← always force false, never trust client
+  });
  
     return role.save();
   }

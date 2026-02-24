@@ -27,7 +27,7 @@ export class AuditService {
   async logPermissionCheck(log: PermissionCheckLog) {
     await this.auditQueue.add('permission-check', log);
   }
-
+    
   // Actually stores log in DB (called by processor)
   async storeAuditLog(log: PermissionCheckLog) {
     const doc = new this.auditModel({
@@ -59,4 +59,12 @@ export class AuditService {
   async getSuspiciousActivity(limit = 100) {
     return this.auditModel.find({ isSuspicious: true }).limit(limit);
   }
+
+async markAsSuspicious(logId: string, reason: string) {
+  return this.auditModel.findByIdAndUpdate(
+    logId,
+    { isSuspicious: true, suspiciousReason: reason },
+    { returnDocument: 'after' },
+  );
+}
 }

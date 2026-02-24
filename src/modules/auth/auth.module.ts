@@ -7,7 +7,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User, UserSchema } from '@infrastructure/database/schemas/user.schema';
 import { Mongoose } from 'mongoose';
-
+import { AuthController } from './auth.controller';
 @Module({
     imports:[
         //Config module lets us read from .env files 
@@ -29,6 +29,8 @@ import { Mongoose } from 'mongoose';
             {name: User.name, schema: UserSchema},
         ]),
     ],
+    controllers: [AuthController],
+    
     providers:[
         //the guard that protects the routes 
         JwtAuthGuard,

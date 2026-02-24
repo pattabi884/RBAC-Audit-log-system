@@ -9,13 +9,15 @@ import {
   UseGuards 
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '@modules/auth/guards/permissions.guard';
+// PermissionsGuard removed from import — it's now a global APP_GUARD in AppModule
+// and runs automatically on every route. Listing it here caused NestJS to try
+// to instantiate it inside UsersModule, where its dependencies don't exist.
 import { RequirePermissions } from '@modules/auth/decorators/require-permissions.decorator';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard, PermissionsGuard)  // Apply guards to all routes
+@UseGuards(JwtAuthGuard)  // PermissionsGuard removed — it runs globally via APP_GUARD
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

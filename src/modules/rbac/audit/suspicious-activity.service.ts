@@ -41,7 +41,8 @@ export class SuspiciousActivityService {
 
   // Sensitive operation outside business hours
   private async checkOffHours(log: any) {
-    const hour = log.context.timestamp.getHours();
+    const hour = new Date(log.context.timestamp).getHours();
+
 
     if (hour < 8 || hour >= 20) {
       if (log.permission.includes('delete')) {

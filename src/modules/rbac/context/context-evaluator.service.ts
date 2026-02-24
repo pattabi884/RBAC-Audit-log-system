@@ -61,19 +61,28 @@ export class ContextEvaluatorService {
         return this.checkSameDepartment(context);
         
       case RuleCondition.BUSINESS_HOURS:
-        return this.checkBusinessHours(context, rule.params);
+        if (!rule.params) {
+          return { passed: false, details: 'Missing params for BUSINESS_HOURS rule' };
+        }
+        return this.checkBusinessHours(context, rule.params as { start: number; end: number });
         
       case RuleCondition.MFA_REQUIRED:
         return this.checkMFA(context);
         
       case RuleCondition.TRUSTED_IP:
-        return this.checkTrustedIP(context, rule.params);
+        if (!rule.params) {
+          return { passed: false, details: 'Missing params for TRUSTED_IP rule' };
+        }
+        return this.checkTrustedIP(context, rule.params as { allowedRanges: string[] });
         
       case RuleCondition.RESOURCE_OWNER:
         return this.checkResourceOwner(context);
         
       case RuleCondition.MAX_SESSION_AGE:
-        return this.checkSessionAge(context, rule.params);
+        if (!rule.params) {
+          return { passed: false, details: 'Missing params for MAX_SESSION_AGE rule' };
+        }
+        return this.checkSessionAge(context, rule.params as { maxMinutes: number });
         
       case RuleCondition.WEEKDAY_ONLY:
         return this.checkWeekday(context);

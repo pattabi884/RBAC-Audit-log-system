@@ -8,6 +8,9 @@ export type PermissionDocument = Permission & Document;
 export class Permission {
   @Prop({ required: true, unique: true })
   name: string; // e.g., "users:delete"
+  // unique: true here already creates an index on name automatically.
+  // We do NOT need PermissionSchema.index({ name: 1 }) below as well —
+  // that was the duplicate that caused the Mongoose warning.
 
   @Prop({ required: true })
   resource: string; // e.g., "users"
@@ -27,5 +30,4 @@ export const PermissionSchema = SchemaFactory.createForClass(Permission);
 // Index for fast lookups by resource
 PermissionSchema.index({ resource: 1 });
 
-// Index for fast lookups by name
-PermissionSchema.index({ name: 1 });
+// name index removed — it's already created by unique: true on the @Prop above

@@ -9,7 +9,7 @@ export class Role{
     name: string;// admin manager user
 
     @Prop({ required: true})
-    descripition: string;
+    description: string;
 
     @Prop({ type: [String], default:[] })
     permissions: string[]; //["users: create", "users:read"]

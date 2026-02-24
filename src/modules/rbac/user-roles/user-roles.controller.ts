@@ -1,13 +1,15 @@
 import { Controller, Post, Delete, Get, Param, Body } from '@nestjs/common';
 import { UserRolesService } from './user-roles.service';
-import { AssignRoleDto } from './dto';
+//import { AssignRoleDto } from './dto';
+import { Public } from '@modules/auth/decorators/public.decorator';
+import { AssignRoleDto } from './dto/assign-role.dto';
 
 
 
 @Controller('user-roles')
 export class UserRolesController {
   constructor(private readonly userRolesService: UserRolesService) {}
-
+ // @Public()
   @Post('assign')
   assignRole(@Body() dto: AssignRoleDto) {
     return this.userRolesService.assignRole(dto.userId, dto.roleId, dto.assignedBy);

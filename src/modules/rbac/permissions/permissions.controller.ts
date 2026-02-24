@@ -1,4 +1,3 @@
-
 import {
   Controller,
   Get,
@@ -9,21 +8,19 @@ import {
   Body,
   UseGuards,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
-
-
+import { Public } from '@modules/auth/decorators/public.decorator';
 import { PermissionsService } from './permissions.service';
-
-
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '@modules/auth/guards/permissions.guard';
+// PermissionsGuard removed from import — it's now a global APP_GUARD in AppModule
+// and runs automatically on every route. Listing it here caused NestJS to try
+// to instantiate it inside PermissionsModule, where its dependencies don't exist.
 import { RequirePermissions } from '@modules/auth/decorators/require-permissions.decorator';
-import { CreatePermissionDto } from './create-permission.dto';
-import { UpdatePermissionDto } from './update-permission.dto';
-
+import { CreatePermissionDto } from './dto/create-permission.dto';
+import { UpdatePermissionDto } from './dto/update-permission.dto';
 @Controller('permissions')
-
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)  // PermissionsGuard removed — it runs globally via APP_GUARD
 export class PermissionsController {
   
   constructor(private readonly permissionsService: PermissionsService) {}
@@ -73,10 +70,20 @@ export class PermissionsController {
   }
 
   // POST /permissions/seed
+  //@Public()
   @Post('seed')
-  @RequirePermissions('roles:create')
-  seed() {
-    
-    return this.permissionsService.seedPermissions();
+@RequirePermissions('roles:create')
+seed() {
+  /*
+    Seed should only run in development.
+    In production this would wipe and recreate all permissions
+    which is dangerous if called accidentally.
+    NODE_ENV is set automatically by NestJS — 'development' locally,
+    'production' on your server.
+  */
+  if (process.env.NODE_ENV === 'production') {
+    throw new ForbiddenException('Seed not available in production');
   }
+  return this.permissionsService.seedPermissions();
+}
 }
